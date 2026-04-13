@@ -1,9 +1,11 @@
 import * as BABYLON from 'babylonjs';
+import { WeaponBuilder } from './WeaponBuilder';
 
 export class Player {
-    constructor(scene, canvas) {
+    constructor(scene, canvas, audio) {
         this.scene = scene;
         this.canvas = canvas;
+        this.audio = audio;
         this.camera = null;
         this.scanner = null;
         this.init();
@@ -99,10 +101,33 @@ export class Player {
             if (Date.now() - this.lastDamageTime > 4000 && this.shield < 100) this.shield += 0.2;
             if (this.energy < 100) this.energy += 0.4;
 
-            // 4. Muzzle Light Decay
-            if (this.muzzleLight.intensity > 0) this.muzzleLight.intensity -= 0.8;
-        });
-    }
+        // Muzzle Light Decay
+        if (this.muzzleLight.intensity > 0) this.muzzleLight.intensity -= 0.8;
+    });
+
+    this.setWeapon("M4A1");
+}
+
+setWeapon(type) {
+    this.currentWeapon = type;
+    if (this.scanner) this.scanner.dispose();
+    
+    // Weapon Stats
+    const weaponProfiles = {
+        "M4A1": { fireRate: 150, energyCost: 5, recoil: 0.15, damage: 20 },
+        "AK47": { fireRate: 200, energyCost: 8, recoil: 0.25, damage: 35 },
+        "MP5":  { fireRate: 100, energyCost: 4, recoil: 0.1,  damage: 15 }
+    };
+
+    const profile = weaponProfiles[type] || weaponProfiles["M4A1"];
+    this.fireRate = profile.fireRate;
+    this.recoilTarget = profile.recoil;
+    this.damage = profile.damage;
+
+    // Build modern mesh using WeaponBuilder
+    this.scanner = WeaponBuilder.build(type, this.scene, this.camera);
+    this.scanner.position = new BABYLON.Vector3(0.5, -0.4, 1);
+}
 
     takeDamage(amount) {
         this.shield -= amount;
@@ -126,9 +151,9 @@ export class Player {
                     this.scene.getEngine().enterPointerlock();
                 } else {
                     const now = Date.now();
-                    if (now - this.lastFireTime > this.fireRate && this.energy > 8) {
+                    if (now - this.lastFireTime > this.fireRate && this.energy > 5) {
                         this.firePulse();
-                        this.energy -= 8;
+                        this.energy -= 5;
                         this.lastFireTime = now;
                     }
                 }
@@ -138,6 +163,7 @@ export class Player {
 
     jump() {
         this.canJump = false;
+        if (this.audio) this.audio.play("jump");
         let jumpForce = 4;
         const jumpObs = this.scene.onBeforeRenderObservable.add(() => {
             this.camera.position.y += jumpForce * 0.05;
@@ -145,6 +171,7 @@ export class Player {
             if (this.camera.position.y <= 2.0) {
                 this.camera.position.y = 2.0;
                 this.canJump = true;
+                if (this.audio) this.audio.play("land");
                 this.scene.onBeforeRenderObservable.remove(jumpObs);
                 this.camera.position.y -= 0.15; // Land dip
             }
@@ -154,10 +181,14 @@ export class Player {
     firePulse() {
         const ray = this.camera.getForwardRay();
         const hit = this.scene.pickWithRay(ray, (m) => m.metadata && m.metadata.type === "enemy");
-        if (hit.hit && hit.pickedMesh.onHit) hit.pickedMesh.onHit(25);
+        if (hit.hit && hit.pickedMesh.onHit) hit.pickedMesh.onHit(this.damage || 25);
+
+        // Sound logic
+        const weaponSound = `fire_${this.currentWeapon.toLowerCase()}`;
+        if (this.audio) this.audio.play(weaponSound);
 
         // Recoil
-        this.recoilZ = 0.25;
+        this.recoilZ = this.recoilTarget || 0.25;
 
         // Muzzle Effects
         this.muzzleLight.position = this.scanner.getAbsolutePosition().add(this.camera.getDirection(BABYLON.Vector3.Forward()).scale(0.8));

@@ -102,6 +102,61 @@ export class UIManager {
         this.enemyHealthBar.background = "red";
         this.enemyHealthBar.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_CENTER;
         this.enemyHealthContainer.addControl(this.enemyHealthBar);
+
+        this.createMinimap();
+    }
+
+    createMinimap() {
+        const mapSize = 150;
+        this.mapContainer = new GUI.Rectangle();
+        this.mapContainer.width = `${mapSize}px`;
+        this.mapContainer.height = `${mapSize}px`;
+        this.mapContainer.color = "rgba(0, 255, 255, 0.4)";
+        this.mapContainer.background = "rgba(0, 0, 0, 0.6)";
+        this.mapContainer.thickness = 2;
+        this.mapContainer.horizontalAlignment = GUI.Control.HORIZONTAL_ALIGNMENT_RIGHT;
+        this.mapContainer.verticalAlignment = GUI.Control.VERTICAL_ALIGNMENT_TOP;
+        this.mapContainer.top = "20px";
+        this.mapContainer.left = "-20px";
+        this.advancedTexture.addControl(this.mapContainer);
+
+        this.playerMarker = new GUI.Ellipse();
+        this.playerMarker.width = "6px";
+        this.playerMarker.height = "6px";
+        this.playerMarker.background = "white";
+        this.playerMarker.color = "white";
+        this.mapContainer.addControl(this.playerMarker);
+
+        this.enemyMarkers = [];
+    }
+
+    updateMinimap(playerPos, enemies) {
+        const scale = 0.5; // Scale world units to pixels
+        const mapSize = 150;
+
+        // Clear old markers (simple approach)
+        this.enemyMarkers.forEach(m => m.dispose());
+        this.enemyMarkers = [];
+
+        enemies.forEach(enemy => {
+            if (enemy.isDisposed()) return;
+            const delta = enemy.position.subtract(playerPos);
+            const marker = new GUI.Ellipse();
+            marker.width = "4px";
+            marker.height = "4px";
+            marker.background = "red";
+            marker.color = "red";
+            
+            // Limit to map bounds
+            const mapX = delta.x * scale;
+            const mapY = delta.z * scale;
+            if (Math.abs(mapX) < mapSize/2 && Math.abs(mapY) < mapSize/2) {
+                marker.left = mapX;
+                marker.top = -mapY; // Invert Z for screen space
+                this.mapContainer.addControl(marker);
+                this.enemyMarkers.push(marker);
+            }
+        });
     }
 
     updateStats(shield, energy) {

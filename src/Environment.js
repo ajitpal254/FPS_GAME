@@ -1,8 +1,9 @@
 import * as BABYLON from 'babylonjs';
 
 export class Environment {
-    constructor(scene) {
+    constructor(scene, audio) {
         this.scene = scene;
+        this.audio = audio;
         this.pipeline = null;
         this.csm = null;
         this.init();
@@ -13,7 +14,7 @@ export class Environment {
         const skybox = BABYLON.MeshBuilder.CreateBox("skyBox", {size: 1000.0}, this.scene);
         const skyboxMaterial = new BABYLON.StandardMaterial("skyBox", this.scene);
         skyboxMaterial.backFaceCulling = false;
-        skyboxMaterial.reflectionTexture = new BABYLON.CubeTexture("https://assets.babylonjs.com/textures/skybox/", this.scene);
+        skyboxMaterial.reflectionTexture = new BABYLON.CubeTexture("https://assets.babylonjs.com/textures/skybox", this.scene);
         skyboxMaterial.reflectionTexture.coordinatesMode = BABYLON.Texture.SKYBOX_MODE;
         skyboxMaterial.diffuseColor = new BABYLON.Color3(0, 0, 0);
         skyboxMaterial.specularColor = new BABYLON.Color3(0, 0, 0);
@@ -34,20 +35,20 @@ export class Environment {
     }
 
     setupPipelines(camera) {
-        if (!camera) return;
+        if (!camera || this.pipeline) return;
 
         // AAA Cinematic Pipeline
         this.pipeline = new BABYLON.DefaultRenderingPipeline("pipeline", true, this.scene, [camera]);
+        // ... (rest of configuration)
         this.pipeline.bloomEnabled = true;
         this.pipeline.bloomThreshold = 0.9;
         this.pipeline.bloomWeight = 0.4;
         this.pipeline.fxaaEnabled = true;
         
-        // Tone Mapping & Gritty Contrast
         this.pipeline.imageProcessingEnabled = true;
         this.pipeline.imageProcessing.toneMappingEnabled = true;
         this.pipeline.imageProcessing.toneMappingType = BABYLON.ImageProcessingConfiguration.TONEMAPPING_ACES;
-        this.pipeline.imageProcessing.contrast = 1.4; // PUNCHY
+        this.pipeline.imageProcessing.contrast = 1.4; 
         this.pipeline.imageProcessing.exposure = 1.1;
         this.pipeline.imageProcessing.vignetteEnabled = true;
         this.pipeline.imageProcessing.vignetteWeight = 5;
@@ -57,11 +58,36 @@ export class Environment {
         this.pipeline.chromaticAberrationEnabled = true;
         this.pipeline.chromaticAberration.aberrationAmount = 20;
 
-        // SSAO for depth
-        const ssao = new BABYLON.SSAORenderingPipeline("ssao", this.scene, 0.75, [camera]);
-        ssao.radius = 2.0;
-        ssao.totalStrength = 1.5;
-        this.scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline("ssao", camera);
+        // SSAO for depth - Only create if not exists
+        if (!this.ssao) {
+            this.ssao = new BABYLON.SSAORenderingPipeline("ssao", this.scene, 0.75, [camera]);
+            this.ssao.radius = 2.0;
+            this.ssao.totalStrength = 1.5;
+            this.scene.postProcessRenderPipelineManager.attachCamerasToRenderPipeline("ssao", camera);
+        }
+    }
+
+    setQuality(quality) {
+        if (quality === "HIGH") {
+            this.scene.fogDensity = 0.015;
+            
+            // SSR Implementation - Only create if not exists
+            if (BABYLON.SSRRenderingPipeline && !this.ssr) {
+                this.ssr = new BABYLON.SSRRenderingPipeline(
+                    "ssr", this.scene, [this.scene.activeCamera], false, BABYLON.Constants.TEXTURETYPE_UNSIGNED_BYTE
+                );
+                this.ssr.thickness = 0.1;
+                this.ssr.selfCollision = true;
+                this.ssr.roughnessFactor = 0.2;
+                this.ssr.reflectivityThreshold = 0.05;
+            }
+        } else {
+            this.scene.fogDensity = 0.005;
+            if (this.ssr) {
+                this.ssr.dispose();
+                this.ssr = null;
+            }
+        }
     }
 
     createMaterials() {
@@ -132,9 +158,15 @@ export class Environment {
 
         // Side Pillars for silhuette
         const p = BABYLON.MeshBuilder.CreateBox("pillar", {width: 4, height: h, depth: 4}, this.scene);
-        p.position = new BABYLON.Vector3(pos.x + w/2, h/2, pos.z + w/2);
-        p.material = this.metalMat;
         this.csm.addShadowCaster(p);
+
+        // Add spatial hum to some buildings
+        if (this.audio && Math.random() > 0.7) {
+            this.audio.addSpatialSound("building_hum_" + Math.random(), "https://assets.babylonjs.com/sound/violons11.wav", base, {
+                volume: 0.1,
+                maxDistance: 30
+            });
+        }
     }
 
     addShadowCaster(mesh) {
