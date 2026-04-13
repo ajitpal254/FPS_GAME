@@ -1,0 +1,29 @@
+{
+  "name": "project-neon",
+  "version": "1.0.0",
+  "description": "High-End Native PC FPS Exploration Game",
+  "main": "main.js",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "start": "electron .",
+    "dist": "electron-builder"
+  },
+  "dependencies": {
+    "babylonjs": "^6.45.0",
+    "babylonjs-gui": "^6.45.0",
+    "babylonjs-loaders": "^6.45.0"
+  },
+  "devDependencies": {
+    "electron": "^28.2.0",
+    "electron-builder": "^24.9.1",
+    "vite": "^5.0.12"
+  },
+  "build": {
+    "appId": "com.neon.project",
+    "win": {
+      "target": "nsis"
+    }
+  }
+}
